@@ -83,6 +83,36 @@ Everything is pinned in `requirements.txt` at the repo root.
 
 ## Install
 
+### 1. Install Python 3.9+ and pip
+
+```bash
+# macOS
+brew install python@3.11
+# Debian/Ubuntu/Termux
+apt install -y python3 python3-pip
+```
+
+Verify with `python3 --version`.
+
+### 2. (Optional) Install Foundry if you want cast/forge fallback
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+Verify with `cast --version`. Foundry is OPTIONAL for this skill — the bash CLI in `scripts/cli.sh` works without it.
+
+### 3. Get the skill
+
+```bash
+git clone https://github.com/Johnnelson2409/sybilpicker
+cd sybilpicker
+pip install -r requirements.txt
+chmod +x scripts/*.sh
+```
+
+That's it. No build step, no native compilation. The skill is a Python 3.9+ module wrapped by a bash CLI for easy invocation.
 ### 1. Install Foundry (the engine the skill is built on)
 
 ```bash
