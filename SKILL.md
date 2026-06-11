@@ -14,16 +14,12 @@ description: >
   (works with any EVM-compatible RPC URL, including Pharos Pacific
   mainnet and Atlantic testnet).
   Do not attempt sybil estimation without reading this skill.
-version: 0.1.0
-requires:
-  - python >= 3.9
-  - requests
-  - anyBins:
-      - cast   # optional, used for manual cross-check of tx history
-      - jq     # optional, used for ergonomic RPC URL extraction
+version: 2.0.0
+requires: read
+bins: [bash, cast, jq]
 author: Johnnelson2409
-bins: [python3]
-tags: [pharos, blockchain, agent-skill]
+network: pharos
+tags: [pharos, blockchain, sybil, wallet, identity, agent-skill, foundry]
 agents: [claude, codex, gemini, openclaw]
 ---
 
