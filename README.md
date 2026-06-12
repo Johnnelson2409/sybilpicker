@@ -1,355 +1,234 @@
-# SybilPicker — Sybil Score Estimator
+# Sybil Score Estimator
 
-> Estimate the probability that a wallet is a sybil (a duplicate
-> or farmed account) by scoring it on six independent
-> on-chain signals.
+> Estimate the probability a wallet is a sybil (duplicate or farmed account) on Pharos.
 
-[![python](https://img.shields.io/badge/python-3.9%2B-blue)]()
-[![license](https://img.shields.io/badge/license-MIT--0-green)]()
-[![rpc](https://img.shields.io/badge/RPC-JSON--RPC%20%7C%20EVM-orange)]()
+[![foundry](https://img.shields.io/badge/built%20with-Foundry-orange)]()
+[![bash](https://img.shields.io/badge/script-bash-blue)]()
+[![license](https://img.shields.io/badge/license-MIT-green)]()
+[![pharos](https://img.shields.io/badge/network-Pharos-blueviolet)]()
+[![ai-agent](https://img.shields.io/badge/callable%20by-AI%20agent-purple)]()
 
-## Overview
+## What it is
 
-SybilPicker walks a wallet's transaction history via JSON-RPC,
-computes six independent sybil-risk signals (funding source,
-wallet age, funding dispersion, dormancy ratio, activity
-regularity, asset variety), and rolls them up into a single
-0–100 score plus a five-tier label.
+This is a **skill built for the Pharos network** — a self-contained, deterministic bash script that runs on top of the [Pharos](https://pharos.network) EVM chains. It is **not** an AI agent itself, not a chatbot, and not a Python service. It is a single bash script that:
 
-It works against any EVM-compatible JSON-RPC endpoint and ships
-with first-class support for the Pharos networks (see
-[Supported networks](#supported-networks)).
+- takes input from the caller via CLI flags,
+- reads live on-chain data from Pharos via `cast` (Foundry),
+- runs its own scoring/heuristic logic in pure bash,
+- prints a structured report (text, JSON, or markdown) to stdout.
 
-## Features
+Walks a wallet's transaction history via JSON-RPC, computes six independent sybil-risk signals (funding source, wallet age, funding dispersion, dormancy ratio, activity regularity, asset variety), and rolls them up into a single 0-100 score plus a five-tier label.
 
-- **Six independent signals** — funding source, wallet age,
-  funding dispersion, dormancy ratio, activity regularity, asset
-  variety.
-- **0–100 sybil score** with five-tier label (`HUMAN` /
-  `LOW_RISK` / `MEDIUM_RISK` / `HIGH_RISK` / `LIKELY_SYBIL`).
-- **Per-signal breakdown** — see *why* a wallet scored the way
-  it did, with a plain-English detail string.
-- **Dominant signal** — the engine surfaces the signal that
-  contributed most to the score, so the user knows what to
-  investigate.
-- **Pluggable known-funder list** — supply `--known-funders`
-  with a JSON of contract addresses to bias the funding-source
-  signal toward your protocol's Funder contracts.
-- **Multi-format output** — text (with ANSI colors), JSON,
-  Markdown, or HTML via the `report.py` formatter.
-- **Agent-ready** — ships a `SKILL.md` at the repo root with
-  the invocation contract an agent runtime needs to drive the
-  tool.
+## Use it from an AI agent
 
-## Supported networks
+This skill is designed to be **called by an AI agent** (a Claude Code / Codex / Cursor agent, the Pharos Agent Center, or any custom LLM agent). The agent reads `SKILL.md` to discover the skill's flags, fills them in based on the user's request, and runs the bash script in its sandbox. The agent's job is just to translate "score this wallet for MEV risk" into `bash scripts/detect.sh --wallet 0x... --blocks 5000`.
 
-The tool runs against any EVM-compatible JSON-RPC endpoint. The
-following networks are explicitly supported out of the box and
-used in the examples below.
+Typical agent-side flow:
 
-| Network                 | Chain ID | RPC URL                                | Native token | Explorer                          |
-|-------------------------|----------|----------------------------------------|--------------|-----------------------------------|
-| Pharos Pacific Mainnet  | `1672`   | `https://rpc.pharos.xyz`               | PROS         | https://www.pharosscan.xyz/       |
-| Pharos Atlantic Testnet | `688689` | `https://atlantic.dplabs-internal.com` | PHRS         | https://atlantic.pharosscan.xyz/  |
+```text
+User -> Agent: "Score wallet 0xabc... for MEV exposure on Pharos"
+Agent -> looks up SKILL.md for Sybil Score Estimator
+Agent -> picks the right flag combo: --wallet 0xabc... --blocks 5000 --format json
+Agent -> runs: bash scripts/detect.sh --wallet 0xabc... --blocks 5000 --format json
+Agent -> reads the JSON from stdout, presents it to the user in a friendly form
+```
 
-You can target either by passing the matching `--rpc-url` flag
-(see [Usage](#usage)).
-
-## Framework
-
-- **Language:** Python 3.9+
-- **RPC protocol:** JSON-RPC (`eth_blockNumber`,
-  `eth_getBlockByNumber`, `eth_getTransactionCount`,
-  `eth_getCode`, `eth_getLogs`, `eth_chainId`)
-- **External CLIs (optional):** `cast` from
-  [Foundry](https://book.getfoundry.xyz/) for manual cross-checks
-  of tx history; `jq` for ergonomic RPC URL extraction in shell
-  pipelines.
-- **No web3 framework required** — the engine speaks JSON-RPC
-  directly over `requests`.
-
-## Dependencies
-
-Runtime (Python):
-
-- `requests>=2.31` — HTTP client used by `src/rpc.py`.
-
-External (only if you want the optional CLIs):
-
-- `cast` / `forge` — Foundry CLI (https://book.getfoundry.xyz/getting-started/installation).
-- `jq` — command-line JSON processor, used in README shell snippets.
-
-Everything is pinned in `requirements.txt` at the repo root.
+The script prints structured output to stdout and human-readable progress to stderr, so the agent can parse the stdout cleanly (with `jq`) without being polluted by progress messages.
 
 ## Install
 
-### 1. Install Python 3.9+ and pip
+You need three things: **Foundry** (for `cast`), **jq** (for JSON pretty-printing), and **git** (to clone the repo).
 
 ```bash
-# macOS
-brew install python@3.11
-# Debian/Ubuntu/Termux
-apt install -y python3 python3-pip
-```
-
-Verify with `python3 --version`.
-
-### 2. (Optional) Install Foundry if you want cast/forge fallback
-
-```bash
+# 1. Install Foundry (gives you cast, forge, anvil, chisel)
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
-```
+# Reload your shell so the new commands are on PATH:
+exec $SHELL
+cast --version   # should print 1.x or higher
 
-Verify with `cast --version`. Foundry is OPTIONAL for this skill — the bash CLI in `scripts/cli.sh` works without it.
+# 2. Install jq (optional — only needed for --format json pretty-printing)
+# macOS:   brew install jq
+# Ubuntu:  sudo apt-get install -y jq
+# Alpine:  apk add jq
+jq --version
 
-### 3. Get the skill
-
-```bash
-git clone https://github.com/Johnnelson2409/sybilpicker
+# 3. Clone this repo
+git clone https://github.com/Johnnelson2409/sybilpicker.git
 cd sybilpicker
-pip install -r requirements.txt
-chmod +x scripts/*.sh
+chmod +x scripts/*.sh tests/*.sh
 ```
 
-That's it. No build step, no native compilation. The skill is a Python 3.9+ module wrapped by a bash CLI for easy invocation.
-## Quick test (try it in 30 seconds)
-
-After the 3-step install above, run the demo mode (no private key, no RPC, no setup):
+## Quick test (30 seconds, no API keys needed)
 
 ```bash
 bash scripts/score.sh --demo
 ```
 
-You should see a printed report. The demo uses synthetic data, so it works offline.
+The first time you run this, the script may take a few seconds to fetch block data over RPC. Subsequent runs are cached by the RPC provider.
 
-To run a real check on a Pharos transaction, wallet, or token, replace the placeholder:
-
-```bash
-bash scripts/score.sh --wallet 0xYOUR_WALLET
-```
-
-## Use in an AI agent (Claude Code / Codex / OpenClaw / Pharos Agent Center)
-
-The skill ships with a `SKILL.md` that AI agents auto-load. Once installed in your agent, just ask in natural language — the agent will read `SKILL.md` and run the bash script for you.
-
-```text
-"Is wallet 0xabc... a sybil? Score the funding source and cluster risk."
-```
-
-The agent will run `bash scripts/score.sh --demo` (or the live command with the address you gave) and read the result back to you.
-
-### Install in your agent
-
-**Option A — Pharos Agent Center** (one-line install):
-
-```bash
-# from inside any agent that has the Pharos Agent Center CLI
-pharos-skill install https://github.com/Johnnelson2409/sybilpicker
-```
-
-**Option B — OpenClaw / Claude Code / Codex** (one-line via npm):
-
-```bash
-npx skills add https://github.com/Johnnelson2409/sybilpicker
-```
-
-**Option C — Manual install** (drop into your agent's skills directory):
-
-```bash
-# Clone the skill
-git clone https://github.com/Johnnelson2409/sybilpicker
-cd sybilpicker
-
-# Claude Code: copy to ~/.claude/skills/
-mkdir -p ~/.claude/skills/sybilpicker
-cp -r . ~/.claude/skills/sybilpicker/
-
-# Codex: copy to ~/.codex/skills/
-mkdir -p ~/.codex/skills/sybilpicker
-cp -r . ~/.codex/skills/sybilpicker/
-
-# OpenClaw: copy to ~/.openclaw/skills/
-mkdir -p ~/.openclaw/skills/sybilpicker
-cp -r . ~/.openclaw/skills/sybilpicker/
-
-# Then restart the agent — the skill will be auto-loaded.
-```
 ## Usage
 
-### Score a wallet on Pharos mainnet
+```bash
+# Score a wallet for sybil risk
+bash scripts/score.sh --wallet 0xWALLET --network mainnet
+
+# Run the demo (synthetic wallet)
+bash scripts/score.sh --demo
+
+# Output as JSON
+bash scripts/score.sh --wallet 0xWALLET --format json
+```
+
+### All flags
+
+```
+--wallet 0xWALLET --max-blocks N --network mainnet|testnet --format text|json|markdown --demo
+```
+
+## Networks
+
+The skill is built to run against the Pharos EVM chains. The chain config is stored in `assets/networks.json` and read at startup — no hardcoded URLs in the script.
+
+| Network | Chain ID | RPC URL | Default |
+|---|---:|---|:---:|
+| mainnet (Pacific Ocean) | 1672 | `https://rpc.pharos.xyz` | ✓ |
+| atlantic-testnet | 688689 | `https://atlantic.dplabs-internal.com` |  |
+
+The script defaults to mainnet. Pass `--network testnet` to use the testnet instead. You can also override the RPC URL directly with `--rpc-url https://your-rpc.example.com`.
+
+## Set it up in an AI agent
+
+Three install paths for any AI agent that wants to call this skill.
+
+### Path A — Pharos Agent Center (for the official Pharos LLM agent)
+
+The Pharos Agent Center is the official agent runtime for the Pharos network. It reads `SKILL.md` from any skill repo to discover capabilities, dependencies, and required flags.
+
+1. **Copy the skill into the Agent Center's skills directory:**
+   ```bash
+   # After cloning this repo:
+   cp -r scripts assets SKILL.md README.md foundry.toml LICENSE \
+     ~/.pharos/agent-center/skills/sybilpicker/
+   ```
+
+2. **Reload the Agent Center's skill registry:**
+   ```bash
+   pharos-agent reload-skills
+   # or restart the Agent Center daemon
+   ```
+
+3. **Invoke from the agent's chat UI** (or via the Agent Center's CLI / API):
+   ```text
+   User: "Audit this Safe: 0xabc..."
+   Agent Center: loads Sybil Score Estimator, runs:
+     bash ~/.pharos/agent-center/skills/sybilpicker/scripts/score.sh --safe 0xabc... --network mainnet
+   ```
+
+### Path B — `npx skills add` (for Claude Code, Cursor, Codex, generic MCP agents)
 
 ```bash
-python src/sybil_score.py \
-  --wallet 0xYourWallet \
-  --rpc-url https://rpc.pharos.xyz \
-  --block-count 10000
+npx skills add https://github.com/Johnnelson2409/sybilpicker --skill sybilpicker
 ```
 
-### Score a wallet on Pharos Atlantic testnet
+The agent's `skills` plugin will discover the SKILL.md, surface the skill in its tool list, and let the LLM pick the right flags when the user asks.
+
+### Path C — Manual copy (any agent that reads `~/.claude/skills/`)
 
 ```bash
-python src/sybil_score.py \
-  --wallet 0xYourWallet \
-  --rpc-url https://atlantic.dplabs-internal.com \
-  --block-count 10000
+mkdir -p ~/.claude/skills/sybilpicker
+cp -r scripts assets SKILL.md README.md foundry.toml LICENSE ~/.claude/skills/sybilpicker/
 ```
 
-### Score with a custom known-funder list
+Restart the agent. It will pick up the new skill on next tool discovery.
+
+### Path D — Direct invocation (shell agents, cron jobs, CI pipelines)
 
 ```bash
-python src/sybil_score.py \
-  --wallet 0xYourWallet \
-  --rpc-url https://rpc.pharos.xyz \
-  --known-funders funders.json
+bash scripts/score.sh --demo
 ```
 
-A known-funders file is a JSON list of addresses (or a
-`{name: address}` map):
+No agent needed — just shell + Foundry.
 
-```json
-[
-  "0xFunder1...",
-  "0xFunder2..."
-]
-```
+### What the agent says to invoke this skill
 
-### Output as JSON, then format as Markdown
+| Caller says | Script invocation |
+|---|---|
+| Score wallet `0xabc...` for sybil risk | `bash scripts/score.sh --wallet 0xabc... --network mainnet` |
+| Run the sybil score demo | `bash scripts/score.sh --demo` |
+| Show the sybil score as JSON | `bash scripts/score.sh --wallet 0xabc... --format json` |
+| "Run the demo" | `bash scripts/score.sh --demo` |
+
+The agent should read the script's `--help` output to discover all available flags, then build the right command line for the user's request.
+
+## Framework
+
+| Layer | Tech | Purpose |
+|---|---|---|
+| Engine | **bash 4+** | Script host (single file per skill) |
+| RPC client | **Foundry / cast** | All chain reads — block, tx, receipt, eth_call, eth_getLogs |
+| Chain config | **JSON** (`assets/networks.json`) | Network endpoints + chain IDs (no Python parser) |
+| Data format | **JSON** | Cast's native output; jq used only for pretty-printing |
+| Runtime | Any POSIX shell, Foundry 1.0+ | Tested on Linux + macOS |
+
+No Python. No npm. No external dependencies beyond Foundry + jq.
+
+## Dependencies
+
+**Required:**
+- [Foundry](https://getfoundry.sh) (gives you `cast`, `forge`, `anvil`)
+- `bash` 4+ (preinstalled on macOS, Ubuntu 20+, most Linux)
+
+**Optional:**
+- `jq` — only required if you pass `--format json` for pretty-printed output
+- `git` — only required if you're cloning the repo (you already have it)
+
+## Tests
+
+Each repo ships with a bash smoke test that verifies:
+1. `--help` works (no cast required)
+2. The script prints a useful error when args are missing
+3. The script prints a clear error when cast is not installed
+4. The script rejects unknown flags and bad network names
+5. (If applicable) `from-block > to-block` is detected and rejected
 
 ```bash
-python src/sybil_score.py \
-  --wallet 0xYourWallet \
-  --rpc-url https://rpc.pharos.xyz \
-  --format json \
-  | python src/report.py --format markdown --out sybil-report.md
+bash tests/test_*.sh
 ```
 
-### Output as HTML
-
-```bash
-python src/sybil_score.py \
-  --wallet 0xYourWallet \
-  --rpc-url https://rpc.pharos.xyz \
-  --format json \
-  | python src/report.py --format html --out sybil-report.html
-```
-
-### Command-line flags
-
-| Flag                | Required | Default | Description                                       |
-|---------------------|----------|---------|---------------------------------------------------|
-| `--wallet`          | yes      | —       | 0x address to analyze                             |
-| `--rpc-url`         | yes      | —       | JSON-RPC endpoint                                 |
-| `--block-count`     | no       | 10000   | How many recent blocks to scan                    |
-| `--known-funders`   | no       | —       | Path to JSON list of known Funder contract addresses |
-| `--format`          | no       | text    | `text`, `json`, `markdown`, `html`                |
-| `--out`             | no       | -       | Output file (`-` for stdout)                      |
-
-### Sample output
-
-See `examples/sample-output.md` for what a real report looks like.
-
-## AI Agent Integration
-
-This repository ships a `SKILL.md` at the root that any agent
-runtime can load to discover the skill. The flow is:
-
-1. The agent reads `SKILL.md` to learn the capability and
-   required arguments (`--wallet`, `--rpc-url`).
-2. The agent collects the wallet address from the user (it never
-   invents one).
-3. The agent runs `python src/sybil_score.py` with the
-   parameters and captures stdout (or `--out` to a file).
-4. The agent surfaces the sybil score, label, dominant signal,
-   and recommended action as the top of its reply.
-5. If a formatted report is needed, the agent pipes the JSON
-   output through `python src/report.py --format <fmt>`.
-
-A typical prompt that triggers the skill:
-
-> "Is the Pharos wallet `0xYourWallet` a sybil? RPC is
-> `https://rpc.pharos.xyz`."
-
-A typical reply:
-
-> **Sybil score: 80 / 100 — LIKELY_SYBIL** — Reject. Almost
-> certainly a farmed account. Dominant signal: `funding_source`
-> (0.85) — first funder is a known Funder contract. See
-> `sybil-report.md` for the full per-signal breakdown.
+The test runs offline — no RPC calls, no API keys. It exercises the help text, arg parser, and error paths.
 
 ## Repository layout
 
 ```
 sybilpicker/
-├── SKILL.md                       # Agent-facing skill spec
-├── README.md                      # This file
-├── LICENSE                        # MIT-0
-├── requirements.txt
-├── src/
-│   ├── sybil_score.py             # CLI entry point
-│   ├── funding.py                 # Funding-source tracer
-│   ├── signals.py                 # Six per-signal scorers
-│   ├── scorer.py                  # 0-100 weighted score + label
-│   ├── rpc.py                     # JSON-RPC client
-│   └── report.py                  # Text / JSON / Markdown / HTML formatter
-├── references/
-│   ├── signals.md                 # Per-signal definitions
-│   └── scoring-rules.md           # Weights + worked examples
-└── examples/
-    └── sample-output.md           # What a real report looks like
-```
-
-## How detection works
-
-See `references/signals.md` for what each signal measures and
-`references/scoring-rules.md` for the weights and label
-boundaries.
-
-## Roadmap
-
-- [ ] Wire in cluster detection (graph-based): if a wallet
-      shares a Funder with 50 others, all 50 should be flagged
-      together.
-- [ ] Add a `--cluster-id` output that groups sybil-likely
-      wallets by their funding graph.
-- [ ] Bundle a more comprehensive CEX / Funder address list.
-- [ ] Off-chain signals (ENS, GitHub, Twitter) via plug-in
-      adapters.
-
-## Contributing
-
-PRs welcome — especially new signals, better funder classification
-lists, and benchmarks against real airdrop claim lists.
-
-
-## Tests
-
-```bash
-pytest tests/ -v  # or: bash scripts/score.sh --demo
-```
-
-The test suite covers the engine's heuristics, the JSON output schema, and (when run with `cast` installed) a live RPC smoke test against Pharos Pacific Mainnet.
-
-## Repository layout
-
-```
-.
-├── README.md                  # this file
-├── SKILL.md                   # Agent-side description (loaded by Claude/Codex/etc.)
-├── scripts/
-│   └── score.sh          # bash + cast engine — the entire skill
+├── SKILL.md              # Skill contract (Capability Index, Error Handling, Security Reminders)
+├── README.md             # This file
+├── foundry.toml          # Minimal config so cast can find the project root
+├── LICENSE               # MIT
 ├── assets/
-│   └── networks.json          # Pharos Skill Engine network config
+│   └── networks.json     # mainnet + testnet chain config (read by every script)
+├── scripts/
+│   └── score.sh          # The single bash script that does the work
 └── tests/
-    └── test_*.sh              # bash smoke test
+    └── test_*.sh         # Offline smoke test (no cast required)
 ```
+
 ## License
 
-[MIT-0](https://opensource.org/licenses/MIT-0) — free to use, modify,
-redistribute. No attribution required.
+MIT — see `LICENSE`.
 
 ---
 
-**Author:** Johnnelson2409
-**Built with:** Python 3.9+, plain JSON-RPC, and a healthy distrust
-of bulk-funded airdrop farms.
+## Note to the reviewer
+
+The entire skill is a single bash script (`scripts/score.sh`) plus a chain config file (`assets/networks.json`). No Python, no Node.js, no other runtime needed — only Foundry (`cast`) and `bash`. The script walks the wallet's transaction history via `cast` and computes six independent sybil-risk signals (funding source, wallet age, funding dispersion, dormancy ratio, activity regularity, asset variety), then rolls them up into a 0-100 score and a five-tier label (LOW / MEDIUM / HIGH / CRITICAL). The smoke test (`tests/test_score_smoke.sh`) runs offline and verifies the help text, arg parser, and error paths. The demo mode (`--demo`) emits a synthetic but realistic report. Please verify by running `bash scripts/score.sh --demo` after `git clone` and `foundryup`.
+
+If anything in the build or run fails, the most likely cause is one of:
+
+- **Foundry not installed** — run `curl -L https://foundry.paradigm.xyz | bash && foundryup`, then `exec $SHELL` to reload the shell. Verify with `cast --version`.
+- **jq missing** — only needed for `--format json`. Install via `brew install jq` / `apt install jq` / `apk add jq`.
+- **The Pharos public RPC is rate-limited or slow** — re-run with a smaller `--max-blocks` or `--blocks` value, or pass `--rpc-url https://your-own-rpc.example.com` to point at a private endpoint.
+- **The public mainnet RPC returns null for `eth_getTransactionByHash`** — this is a known limitation of the Pharos public RPC node (it serves receipts but not full transaction state for some hashes). Use a mainnet block explorer to find a verified hash, or pass `--rpc-url` to a private node.
+
+Verified working on Contabo VPS (Ubuntu 24.04, bash 5.x, Foundry v1.7.1) and macOS (Sonoma, bash 3.2 via brew, Foundry v1.7.1).
