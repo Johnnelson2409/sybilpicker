@@ -28,9 +28,9 @@ Typical agent-side flow:
 ```text
 User -> Agent: "Score wallet 0xabc... for MEV exposure on Pharos"
 Agent -> looks up SKILL.md for Sybil Score Estimator
-Agent -> picks the right flag combo: --wallet 0xabc... --blocks 5000 --format json
-Agent -> runs: bash scripts/detect.sh --wallet 0xabc... --blocks 5000 --format json
-Agent -> reads the JSON from stdout, presents it to the user in a friendly form
+Agent -> picks the right flag combo: --wallet 0xabc... 
+Agent -> runs: bash scripts/score.sh --wallet 0xabc... 
+Agent -> reads the output, presents it to the user in a friendly form
 ```
 
 The script prints structured output to stdout and human-readable progress to stderr, so the agent can parse the stdout cleanly (with `jq`) without being polluted by progress messages.
@@ -71,7 +71,7 @@ The first time you run this, the script may take a few seconds to fetch block da
 
 ```bash
 # Score a wallet for sybil risk
-bash scripts/score.sh --wallet 0xWALLET --network mainnet
+bash scripts/score.sh --wallet 0xWALLET
 
 # Run the demo (synthetic wallet)
 bash scripts/score.sh --demo
@@ -83,7 +83,7 @@ bash scripts/score.sh --wallet 0xWALLET --format json
 ### All flags
 
 ```
---wallet 0xWALLET --max-blocks N --network mainnet|testnet --format text|json|markdown --demo
+--wallet 0xWALLET --max-blocks N --chain mainnet|testnet --format text|json|markdown --demo
 ```
 
 ## Networks
@@ -95,7 +95,7 @@ The skill is built to run against the Pharos EVM chains. The chain config is sto
 | mainnet (Pacific Ocean) | 1672 | `https://rpc.pharos.xyz` | ✓ |
 | atlantic-testnet | 688689 | `https://atlantic.dplabs-internal.com` |  |
 
-The script defaults to mainnet. Pass `--network testnet` to use the testnet instead. You can also override the RPC URL directly with `--rpc-url https://your-rpc.example.com`.
+The script defaults to mainnet. Pass `--chain testnet` to use the testnet instead. You can also override the RPC URL directly with `--rpc-url https://your-rpc.example.com`.
 
 ## Set it up in an AI agent
 
@@ -120,9 +120,9 @@ The Pharos Agent Center is the official agent runtime for the Pharos network. It
 
 3. **Invoke from the agent's chat UI** (or via the Agent Center's CLI / API):
    ```text
-   User: "Audit this Safe: 0xabc..."
+   User: "Score wallet 0xabc... for sybil risk on Pharos"
    Agent Center: loads Sybil Score Estimator, runs:
-     bash ~/.pharos/agent-center/skills/sybilpicker/scripts/score.sh --safe 0xabc... --network mainnet
+     bash ~/.pharos/agent-center/skills/sybilpicker/scripts/score.sh --wallet 0xWALLET --chain mainnet
    ```
 
 ### Path B — `npx skills add` (for Claude Code, Cursor, Codex, generic MCP agents)
@@ -154,7 +154,7 @@ No agent needed — just shell + Foundry.
 
 | Caller says | Script invocation |
 |---|---|
-| Score wallet `0xabc...` for sybil risk | `bash scripts/score.sh --wallet 0xabc... --network mainnet` |
+| Score wallet `0xabc...` for sybil risk | `bash scripts/score.sh --wallet 0xabc... --chain mainnet` |
 | Run the sybil score demo | `bash scripts/score.sh --demo` |
 | Show the sybil score as JSON | `bash scripts/score.sh --wallet 0xabc... --format json` |
 | "Run the demo" | `bash scripts/score.sh --demo` |
